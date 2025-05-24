@@ -1,0 +1,31 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/kgh/robot_ws/install/mono_interfaces/include/**",
+        "/home/kgh/robot_ws/install/image_recognition_msgs/include/**",
+        "/home/kgh/robot_ws/install/humanoid_interfaces/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/kgh/robot_ws/src/mono_vo/include/**",
+        "/home/kgh/robot_ws/src/monocular_vo/include/**",
+        "/home/kgh/robot_ws/src/movo_realtime/include/**",
+        "/home/kgh/robot_ws/src/ocam_ros2/include/**",
+        "/home/kgh/robot_ws/src/robit_vision25/robit_vision/include/**",
+        "/home/kgh/robot_ws/src/robocup_localization25/include/**",
+        "/home/kgh/robot_ws/src/robotics_demos/lifecycle_node/src/demo_lifecycle/include/**",
+        "/home/kgh/robot_ws/src/yolo_libtorch/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
