@@ -39,9 +39,9 @@ MovoRealtime::MovoRealtime() : Node("movo_realtime")
                                                                                  // P_M = cv::Mat(3, 4, CV_64F, (void *)msg->p.data());
                                                                                });
 
-  imu_subscription_ = this->create_subscription<humanoid_interfaces::msg::ImuMsg>(
-      "Imu", 10,
-      std::bind(&MovoRealtime::imu_callback, this, std::placeholders::_1));
+  // IMU 구독자 설정
+  // imu_subscription_ = this->create_subscription<sensor_msgs::msg::Imu>(
+  //     "/imu/raw_data", 10, std::bind(&MovoRealtime::imu_callback, this, std::placeholders::_1));
 
   movo_publisher_ = this->create_publisher<humanoid_interfaces::msg::MovoMsg>("/movo_publish", 10);
 
@@ -53,17 +53,158 @@ MovoRealtime::~MovoRealtime()
   // 소멸자 구현
 }
 
-void MovoRealtime::imu_callback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg)
-{
-  yaw = msg->yaw;
-  RCLCPP_INFO(this->get_logger(), "Received IMU yaw: %f", yaw);
-  // You can store yaw for use in processing
-}
+// // 개선된 IMU 콜백 함수
+// void MovoRealtime::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
+// {
+//   rclcpp::Time now{msg->header.stamp};
 
-// void MovoRealtime::movo_publisher(float x) {
-//   movo_msg_.x = x * 20.0f;
+//   if (last_imu_time_.nanoseconds() == 0)
+//   {
+//     last_imu_time_ = now;
+//     return;
+//   }
 
-//   movo_publisher_->publish(movo_msg_);
+//   double dt = (now - last_imu_time_).seconds();
+//   last_imu_time_ = now;
+
+//   // 센서 데이터 추출
+//   Eigen::Vector3d acc_bf(
+//       msg->linear_acceleration.x,
+//       msg->linear_acceleration.y,
+//       msg->linear_acceleration.z);
+
+//   Eigen::Vector3d gyro_bf(
+//       msg->angular_velocity.x,
+//       msg->angular_velocity.y,
+//       msg->angular_velocity.z);
+
+//   // 1. 바이어스 추정 (초기화 단계)
+//   if (!bias_initialized_)
+//   {
+//     estimate_bias(acc_bf, gyro_bf);
+//     return;
+//   }
+
+//   // 2. 바이어스 보정
+//   acc_bf -= acc_bias_;
+//   gyro_bf -= gyro_bias_;
+//   current_gyro_ = gyro_bf; // 센서 퓨전용
+
+//   // 3. 노이즈 필터링
+//   acc_bf = acc_filter_.filter(acc_bf);
+//   gyro_bf = gyro_filter_.filter(gyro_bf);
+
+//   // 4. Orientation 업데이트 (각속도 적분)
+//   update_orientation_from_gyro(gyro_bf, dt);
+
+//   // 5. 중력 보정 (개선된 방식)
+//   Eigen::Vector3d gravity_wf = current_R_ * Eigen::Vector3d(0, 0, -9.80665);
+//   Eigen::Vector3d acc_wf = current_R_ * acc_bf - gravity_wf;
+
+//   // 6. 드리프트 보정
+//   apply_drift_correction(acc_wf, gyro_bf);
+
+//   // 7. 적분
+//   velocity_ += acc_wf * dt;
+//   position_ += velocity_ * dt + 0.5 * acc_wf * dt * dt;
+
+//   // 8. 공분산 업데이트
+//   update_covariance(dt);
+
+//   // 9. 로그 (더 상세한 정보)
+//   RCLCPP_INFO(this->get_logger(),
+//               "IMU → dt=%.3f, acc_wf=(%.3f,%.3f,%.3f), vel=(%.3f,%.3f,%.3f), pos=(%.3f,%.3f,%.3f), bias_init=%s",
+//               dt,
+//               acc_wf.x(), acc_wf.y(), acc_wf.z(),
+//               velocity_.x(), velocity_.y(), velocity_.z(),
+//               position_.x(), position_.y(), position_.z(),
+//               bias_initialized_ ? "OK" : "NO");
+// }
+
+// // 바이어스 추정 함수
+// void MovoRealtime::estimate_bias(const Eigen::Vector3d &acc, const Eigen::Vector3d &gyro)
+// {
+//   acc_bias_ += acc;
+//   gyro_bias_ += gyro;
+//   bias_sample_count_++;
+
+//   if (bias_sample_count_ >= BIAS_SAMPLE_SIZE)
+//   {
+//     acc_bias_ /= BIAS_SAMPLE_SIZE;
+//     gyro_bias_ /= BIAS_SAMPLE_SIZE;
+
+//     // 중력 성분 제거 (정지 상태에서 z축은 중력)
+//     acc_bias_ -= Eigen::Vector3d(0, 0, 9.80665);
+
+//     bias_initialized_ = true;
+
+//     RCLCPP_INFO(this->get_logger(),
+//                 "IMU bias initialized → acc_bias=(%.4f,%.4f,%.4f), gyro_bias=(%.4f,%.4f,%.4f)",
+//                 acc_bias_.x(), acc_bias_.y(), acc_bias_.z(),
+//                 gyro_bias_.x(), gyro_bias_.y(), gyro_bias_.z());
+//   }
+// }
+
+// // 각속도를 이용한 orientation 업데이트
+// void MovoRealtime::update_orientation_from_gyro(const Eigen::Vector3d &gyro, double dt)
+// {
+//   // 각속도 벡터의 크기
+//   double gyro_norm = gyro.norm();
+
+//   if (gyro_norm < 1e-6)
+//   {
+//     return; // 거의 회전하지 않음
+//   }
+
+//   // 회전축과 각도
+//   Eigen::Vector3d axis = gyro / gyro_norm;
+//   double angle = gyro_norm * dt;
+
+//   // 로드리게스 공식을 사용한 회전행렬 생성
+//   Eigen::Matrix3d K;
+//   K << 0, -axis.z(), axis.y(),
+//       axis.z(), 0, -axis.x(),
+//       -axis.y(), axis.x(), 0;
+
+//   Eigen::Matrix3d dR = Eigen::Matrix3d::Identity() +
+//                        sin(angle) * K +
+//                        (1 - cos(angle)) * K * K;
+
+//   current_R_ = current_R_ * dR;
+// }
+
+// // 드리프트 보정
+// void MovoRealtime::apply_drift_correction(const Eigen::Vector3d &acc_wf, const Eigen::Vector3d &gyro)
+// {
+//   // 정지 상태 감지
+//   if (acc_wf.norm() < 0.05 && gyro.norm() < 0.02)
+//   {
+//     static_count_++;
+//     if (static_count_ > 20)
+//     { // 20회 연속 정지 상태
+//       // 속도 감쇠
+//       velocity_ *= 0.9;
+//       RCLCPP_DEBUG(this->get_logger(), "Applying velocity drift correction");
+//     }
+//   }
+//   else
+//   {
+//     static_count_ = 0;
+//   }
+// }
+
+// // 공분산 업데이트
+// void MovoRealtime::update_covariance(double dt)
+// {
+//   // 간단한 공분산 전파 (실제로는 더 복잡함)
+//   Eigen::Matrix3d process_noise = Eigen::Matrix3d::Identity() * 0.01;
+
+//   velocity_covariance_ += process_noise * dt * dt;
+//   position_covariance_ += velocity_covariance_ * dt * dt + process_noise * dt * dt;
+
+//   // 공분산이 너무 커지지 않도록 제한
+//   velocity_covariance_ = velocity_covariance_.cwiseMin(10.0);
+//   position_covariance_ = position_covariance_.cwiseMin(100.0);
 // }
 
 void MovoRealtime::image_processing(const cv::Mat &img)
@@ -161,12 +302,13 @@ void MovoRealtime::image_processing(const cv::Mat &img)
     trajectory_pos.y += (t_total.at<double>(2) * 2);
 
     // 1) recoverPose 로부터 얻은 이동 벡터 t = [tx, ty, tz]ᵀ
-    double dx = t.at<double>(0);  // 왼쪽(+)/오른쪽(–) 방향 이동
-    double dz = t.at<double>(2);  // 전진(+)/후진(–) 방향 이동
+    double dx = t.at<double>(0); // 왼쪽(+)/오른쪽(–) 방향 이동
+    double dz = t.at<double>(2); // 전진(+)/후진(–) 방향 이동
 
     // 2) 전/후진 판정 (z축)
-    const double motion_th = 0.01;  // z축 임계값
-    if (std::abs(dz) > motion_th) {
+    const double motion_th = 0.01; // z축 임계값
+    if (std::abs(dz) > motion_th)
+    {
       if (dz > 0)
         RCLCPP_INFO(get_logger(), ">> 전진 detected (dz=%.5f)", dz);
       else
@@ -175,7 +317,8 @@ void MovoRealtime::image_processing(const cv::Mat &img)
 
     // 3) 좌/우 판정 (x축)
     const double lateral_th = 0.01; // x축 임계값
-    if (std::abs(dx) > lateral_th) {
+    if (std::abs(dx) > lateral_th)
+    {
       if (dx > 0)
         RCLCPP_INFO(get_logger(), ">> 우측 이동 detected (dx=%.5f)", dx);
       else
@@ -187,29 +330,51 @@ void MovoRealtime::image_processing(const cv::Mat &img)
     // OpenCV 행렬 R_total: R_total.at<double>(row, col)
     double yaw_vo = std::atan2(R_total.at<double>(1, 0), R_total.at<double>(0, 0));
 
-    // ROS 로그로 출력
-    // RCLCPP_INFO(get_logger(),
-    //             "VO Pose — x: %.3f, y: %.3f, yaw: %.3f deg",
-    //             x_vo,
-    //             y_vo,
-    //             yaw_vo * 180.0 / M_PI);
-
-    // movo_publisher(x_vo); 
-    movo_msg_.x = dz * 10.0; // 전진/후진 이동량을 20배로 스케일링
-    movo_msg_.y = dx * 10.0; // 좌/우 이동량을 20배로 스케일링
+    // // movo_publisher(x_vo);
+    movo_msg_.x = dz * 10.0;               // 전진/후진 이동량을 20배로 스케일링
+    movo_msg_.y = dx * 10.0;               // 좌/우 이동량을 20배로 스케일링
     movo_msg_.yaw = yaw_vo * 180.0 / M_PI; // yaw를 도 단위로 변환
     movo_publisher_->publish(movo_msg_);
 
-    if (dz == 0)
-    {
-      movo_msg_.x = 0.0;
-      movo_publisher_->publish(movo_msg_);
-    }
-    if (dx == 0)
-    {
-      movo_msg_.y = 0.0;
-      movo_publisher_->publish(movo_msg_);
-    }
+    // VO 결과와 IMU 결과 비교/퓨전 준비
+    // if (bias_initialized_)
+    // { // IMU가 초기화된 후에만
+    //   // VO 결과
+    //   double vo_x = dz * 10.0;
+    //   double vo_y = dx * 10.0;
+    //   double vo_yaw = yaw_vo * 180.0 / M_PI;
+
+    //   // IMU 결과
+    //   Eigen::Vector3d imu_pos = get_imu_position();
+    //   // Eigen::Vector3d imu_vel = get_imu_velocity();
+
+    //   // 간단한 가중 평균 퓨전 (나중에 칼만 필터로 교체)
+    //   double weight_vo = 0.7;
+    //   double weight_imu = 0.3;
+
+    //   double fused_x = weight_vo * vo_x + weight_imu * imu_pos.x();
+    //   double fused_y = weight_vo * vo_y + weight_imu * imu_pos.y();
+
+    //   movo_msg_.x = fused_x - last_fused_x_;
+    //   movo_msg_.y = fused_y - last_fused_y_;
+    //   movo_msg_.yaw = vo_yaw; // 일단 VO의 yaw 사용
+
+    //   last_fused_x_ = fused_x;
+    //   last_fused_y_ = fused_y;
+
+    //   RCLCPP_INFO(this->get_logger(),
+    //               "Sensor Fusion → VO:(%.2f,%.2f) IMU:(%.2f,%.2f) Fused:(%.2f,%.2f)",
+    //               vo_x, vo_y, imu_pos.x(), imu_pos.y(), fused_x, fused_y);
+    // }
+    // else
+    // {
+    //   // IMU 초기화 전에는 VO만 사용
+    //   movo_msg_.x = dz * 10.0;
+    //   movo_msg_.y = dx * 10.0;
+    //   movo_msg_.yaw = yaw_vo * 180.0 / M_PI;
+    // }
+
+    // movo_publisher_->publish(movo_msg_);
 
     circle(traj, trajectory_pos, 1, CV_RGB(255, 0, 0), 2);
 
