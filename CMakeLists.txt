@@ -18,6 +18,10 @@ find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(humanoid_interfaces REQUIRED)
 
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+
 
 # Include directories
 include_directories(
@@ -42,6 +46,10 @@ target_link_libraries(movo_realtime
   Boost::thread
   -lv4l2
   -ludev
+
+  Eigen3::Eigen
+  tf2::tf2
+  tf2_ros::tf2_ros
 )
 
 # Add dependencies
@@ -55,6 +63,9 @@ ament_target_dependencies(movo_realtime
   OpenCV
   Boost
   humanoid_interfaces
+  
+  tf2
+  tf2_ros
 )
 
 if(BUILD_TESTING)

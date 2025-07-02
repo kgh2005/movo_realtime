@@ -37,6 +37,11 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/core.hpp>
 
+// #include <Eigen/Dense>
+// #include <Eigen/Geometry>
+
+// #include <tf2/LinearMath/Quaternion.h>
+// #include <tf2/LinearMath/Matrix3x3.h>
 
 using namespace cv;
 using namespace std;
@@ -306,8 +311,6 @@ private:
 
   void image_callback(const sensor_msgs::msg::Image::SharedPtr msg);
 
-  void imu_callback(const humanoid_interfaces::msg::ImuMsg::SharedPtr msg);
-
   // void movo_publisher(float x);
 
   humanoid_interfaces::msg::MovoMsg movo_msg_;
@@ -318,7 +321,6 @@ private:
 
   rclcpp::Subscription<humanoid_interfaces::msg::ImuMsg>::SharedPtr imu_subscription_;
 
-  
   std::string image_topic;
 };
 
